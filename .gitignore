@@ -55,7 +55,6 @@ logs/
 
 # Synology specific
 @eaDir/
-.DS_Store
 .@__thumb/
 
 # GitHub API temporary files
@@ -65,4 +64,3 @@ logs/
 # Temporary files
 *.tmp
 *.bak
-*.swp
