@@ -1,4 +1,3 @@
 PyGithub
 PyYAML
-requests
-pyOpenSSL
+

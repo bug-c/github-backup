@@ -81,30 +81,91 @@ def backup_repository(repo, backup_path):
     """Backup a single repository or update an existing backup."""
     repo_path = os.path.join(backup_path, repo.name)
 
+    # Construct authenticated clone URL
+    token = config['github']['token']
+    # Extract the base URL without the https:// prefix
+    base_url = repo.clone_url.replace('https://', '')
+    # Construct authenticated URL
+    authenticated_url = f"https://{token}@{base_url}"
+
     try:
         if os.path.exists(repo_path):
             # Update existing repository
             logger.info(f"Updating existing repository: {repo.name}")
             os.chdir(repo_path)
 
-            # Fetch updates and reset to origin
+            # For mirror repositories
+            is_mirror = False
+            try:
+                # Check if this is a mirror repository by looking for the '--mirror' config
+                result = subprocess.run(
+                    ["git", "config", "--get", "remote.origin.mirror"],
+                    check=False, capture_output=True, text=True
+                )
+                is_mirror = result.stdout.strip() == "true"
+            except Exception:
+                pass
+
+            logger.debug(f"Repository is mirror: {is_mirror}")
+
+            # Fetch updates
+            logger.debug(f"Fetching updates for {repo.name}")
             subprocess.run(["git", "fetch", "--all"], check=True, capture_output=True)
-            subprocess.run(["git", "reset", "--hard", "origin/main"], check=True, capture_output=True)
 
-            # Try with master if main fails
-            if subprocess.run(["git", "show-ref", "--verify", "--quiet", "refs/remotes/origin/main"]).returncode != 0:
-                subprocess.run(["git", "reset", "--hard", "origin/master"], check=True, capture_output=True)
+            if is_mirror:
+                # For mirror repositories, just fetch everything
+                logger.debug("Mirror repository: just fetching all refs")
+                subprocess.run(["git", "fetch", "--prune"], check=True, capture_output=True)
+                subprocess.run(["git", "fetch", "--tags", "--force"], check=True, capture_output=True)
+            else:
+                # For regular repositories, we need to reset to a branch
+                # Detect default branch
+                default_branch = repo.default_branch
+                logger.debug(f"Repository default branch: {default_branch}")
 
-            # Pull all branches and tags
-            subprocess.run(["git", "pull", "--all"], check=True, capture_output=True)
-            subprocess.run(["git", "fetch", "--tags"], check=True, capture_output=True)
+                # Reset to default branch
+                try:
+                    logger.debug(f"Attempting to reset to origin/{default_branch}")
+                    subprocess.run(["git", "reset", "--hard", f"origin/{default_branch}"],
+                                   check=True, capture_output=True)
+                except subprocess.CalledProcessError as e:
+                    logger.warning(f"Could not reset to origin/{default_branch}, trying to find available branches")
+
+                    # Get list of remote branches
+                    result = subprocess.run(["git", "branch", "-r"], check=True,
+                                            capture_output=True, text=True)
+                    remote_branches = result.stdout.strip().split('\n')
+                    remote_branches = [b.strip() for b in remote_branches if b.strip()]
+
+                    logger.debug(f"Available remote branches: {remote_branches}")
+
+                    # Try main, then master, then any other branch
+                    branch = None
+                    if not remote_branches:
+                        logger.warning("No remote branches found, skipping reset")
+                    else:
+                        if any(b.endswith("/main") for b in remote_branches):
+                            branch = next(b for b in remote_branches if b.endswith("/main"))
+                        elif any(b.endswith("/master") for b in remote_branches):
+                            branch = next(b for b in remote_branches if b.endswith("/master"))
+                        elif remote_branches:
+                            # Get the first available branch
+                            branch = remote_branches[0]
+
+                        if branch:
+                            logger.info(f"Resetting to {branch}")
+                            subprocess.run(["git", "reset", "--hard", branch], check=True, capture_output=True)
+
+                # Pull all branches and tags
+                subprocess.run(["git", "pull", "--all"], check=True, capture_output=True)
+                subprocess.run(["git", "fetch", "--tags"], check=True, capture_output=True)
 
         else:
             # Clone new repository
             logger.info(f"Cloning new repository: {repo.name}")
             # Use mirror clone to get all branches and refs
             subprocess.run(
-                ["git", "clone", "--mirror", repo.clone_url, repo_path],
+                ["git", "clone", "--mirror", authenticated_url, repo_path],
                 check=True, capture_output=True
             )
 
