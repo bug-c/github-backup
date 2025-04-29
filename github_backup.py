@@ -6,16 +6,17 @@ This script backs up all repositories from specified GitHub organizations.
 Designed to run on Synology NAS for automated backups.
 """
 
-import os
-import sys
-import yaml
-import logging
 import argparse
-import subprocess
 import datetime
-from github import Github, GithubException
-from pathlib import Path
+import logging
+import os
+import subprocess
+import sys
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
+
+import yaml
+from github import Github, GithubException
 
 # Setup argument parser
 parser = argparse.ArgumentParser(description='Backup GitHub repositories')
@@ -181,6 +182,22 @@ def backup_repository(repo, backup_path):
         logger.error(f"Failed to backup repository {repo.name}: {e}")
         return False
 
+def send_heartbeat_ping():
+    """Send a simple GET request to a heartbeat URL."""
+    import requests
+    try:
+        url = config['backup'].get('heartbeat_url')
+        if url:
+            response = requests.get(url, timeout=10)
+            if response.status_code == 200:
+                logger.info("Heartbeat ping sent successfully.")
+            else:
+                logger.warning(f"Heartbeat ping returned status code: {response.status_code}")
+        else:
+            logger.debug("No heartbeat URL configured.")
+    except Exception as e:
+        logger.error(f"Failed to send heartbeat ping: {e}")
+
 def main():
     """Main backup process."""
     start_time = datetime.datetime.now()
@@ -245,6 +262,8 @@ def main():
 
         # Clean up old logs
         cleanup_old_logs()
+
+        send_heartbeat_ping()
 
     except GithubException as e:
         logger.error(f"GitHub API error: {e}")

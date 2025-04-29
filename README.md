@@ -80,22 +80,23 @@ Create a config.yaml file with the following structure:
 ```
 # GitHub API Configuration
 github:
-# Create a personal access token at https://github.com/settings/tokens
-# Needs repo and read:org permissions
-token: "your_github_personal_access_token"
+    # Create a personal access token at https://github.com/settings/tokens
+    # Needs repo and read:org permissions
+    token: "your_github_personal_access_token"
 
 # Organizations to backup
 organizations:
-- org_name1
-- org_name2
-# Add more organizations as needed
+    - org_name1
+    - org_name2
+    # Add more organizations as needed
 
 # Backup Configuration
 backup:
-# Path where repositories will be backed up
-path: "/volume1/backups/github"
-# How many days to keep backup logs
-log_retention_days: 30
+    # Path where repositories will be backed up
+    path: "/volume1/backups/github"
+    # How many days to keep backup logs
+    log_retention_days: 30
+    heartbeat_url: https://your-monitoring-service/heartbeat/unique-token
 
 ```
 

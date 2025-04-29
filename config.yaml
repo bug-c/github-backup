@@ -16,3 +16,4 @@ backup:
   path: "/volume1/backups/github"
   # How many days to keep backup logs
   log_retention_days: 30
+  heartbeat_url: https://your-monitoring-service/heartbeat/unique-token
